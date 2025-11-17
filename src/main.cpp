@@ -11,6 +11,7 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_NeoPixel.h>
 
 #define BME_SCK 13
 #define BME_MISO 12
@@ -19,11 +20,25 @@
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
+#define PIXEL_PORT  GPIOA
+#define PIXEL_PIN   0 
+#define NUMPIXELS   4 
+
 Adafruit_BME280 bme; // I2C
 //Adafruit_BME280 bme(BME_CS); // hardware SPI
 //Adafruit_BME280 bme(BME_CS, BME_MOSI, BME_MISO, BME_SCK); // software SPI
+Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
+
+/**************** Variables ****************/
 
 unsigned long delayTime;
+
+/**************** Declarations ****************/
+
+void print_values(void);
+
+/**************** Setup ****************/
 
 void setup() {
     Serial.begin(9600);
@@ -50,14 +65,25 @@ void setup() {
     delayTime = 1000;
 
     Serial.println();
+    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
 }
 
+/**************** Loop ****************/
 
 void loop() { 
+    pixels.clear(); // Set all pixel colors to 'off'
+
+    for(int i=0; i<NUMPIXELS; i++) { // For each pixel...
+      pixels.setPixelColor(i, pixels.Color(0, 150, 0));
+      pixels.show();   // Send the updated pixel colors to the hardware.
+      delay(500); // Pause before next pass through loop
+    }
+
     printValues();
     delay(delayTime);
 }
 
+/**************** Definitions ****************/
 
 void printValues() {
     Serial.print("Temperature = ");
