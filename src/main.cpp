@@ -46,6 +46,9 @@ extern "C" {
 Adafruit_BME280 bme; // I2C
 Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
+HardwareTimer timer2(TIM2);
+HardwareTimer timer5(TIM5);
+
 /**************** Variables ****************/
 
 // State
@@ -68,6 +71,7 @@ volatile float SSD_reading;
 /**************** Declarations ****************/
 
 void TIM2_Handler(void);
+void TIM5_Handler(void);
 void BTN_Handler(void);
 
 void printValues(void);
@@ -110,11 +114,20 @@ void setup() {
     pinMode(BTN_PIN, INPUT); // Set Button as input
     attachInterrupt(BTN_PIN, BTN_Handler, FALLING); // Button interrupt
 
+
     /***** Setup TIM2 *****/
-    TIM2->PSC = 15; // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
-    TIM2->ARR = 5000 - 1; // Auto-reload when CNT = XX: (period = XX usec)
-    TIM2->CR1 = TIM_CR1_CEN; // Enable TIM2
-    attachInterrupt(TIM2_IRQn, TIM2_Handler, RISING);
+    timer2.setPrescaleFactor(15); // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
+    timer2.setOverflow(5000 - 1); // Auto-reload when CNT = XX: (period = XX usec)
+    timer2.attachInterrupt(TIM2_Handler);
+    timer2.refresh(); // Make register changes take effect
+    timer2.resume(); // Start
+
+    /***** Setup TIM5 *****/
+    timer5.setPrescaleFactor(15999); // Prescaler: (16MHz/(15999+1) = 1MHz, 1msec period)
+    timer5.setOverflow(5000 - 1); // Auto-reload when CNT = XX: (period = XX msec)
+    timer5.attachInterrupt(TIM5_Handler);
+    timer5.refresh(); // Make register changes take effect
+    timer5.resume(); // Start
 
     /***** Initialize State Variables *****/
     current_state = temp_C;
@@ -125,8 +138,6 @@ void setup() {
 /**************** Loop ****************/
 
 void loop() { 
-    printValues();
-    delay(5000);
 }
 
 /**************** Definitions ****************/
@@ -213,6 +224,11 @@ void TIM2_Handler(void){
     else decimal = 2;
 
     SSD_update(digit_select, SSD_reading, decimal);
+}
+
+/// @brief Handles sending values to serial monitor every 5 seconds
+void TIM5_Handler(void) {
+    printValues();
 }
  
 /// @brief Handles button presses to update the what measurement to display (state)
