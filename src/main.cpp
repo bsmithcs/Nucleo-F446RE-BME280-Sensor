@@ -14,6 +14,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_NeoPixel.h>
+#include <HardwareTimer.h>
 #include "stm32f4xx.h"
 
 #ifndef SSD_ARRAY_H
@@ -45,9 +46,6 @@ extern "C" {
 
 Adafruit_BME280 bme; // I2C
 Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
-
-HardwareTimer timer2(TIM2);
-HardwareTimer timer5(TIM5);
 
 /**************** Variables ****************/
 
@@ -111,26 +109,41 @@ void setup() {
     SSD_init();
 
     /***** Setup BTN *****/
-    pinMode(BTN_PIN, INPUT); // Set Button as input
+    pinMode(BTN_PIN, INPUT_PULLUP); // Set Button as input
     attachInterrupt(BTN_PIN, BTN_Handler, FALLING); // Button interrupt
 
-
     /***** Setup TIM2 *****/
-    timer2.setPrescaleFactor(15); // Prescaler: (16MHz/(15+1) = 1MHz, 1usec period)
-    timer2.setOverflow(5000 - 1); // Auto-reload when CNT = XX: (period = XX usec)
-    timer2.attachInterrupt(TIM2_Handler);
-    timer2.refresh(); // Make register changes take effect
-    timer2.resume(); // Start
+    HardwareTimer *timer2 = new HardwareTimer(TIM2);
+    timer2->setOverflow(2000, HERTZ_FORMAT);
+    timer2->attachInterrupt(TIM2_Handler);
+    timer2->setInterruptPriority(2, 2);
+    timer2->resume();
+    timer2->refresh();
+    Serial.print("Timer 2 has Interrupt: ");
+    Serial.println(timer2->hasInterrupt());
+    Serial.print("Timer 2 is Running: ");
+    Serial.println(timer2->isRunning());
 
     /***** Setup TIM5 *****/
-    timer5.setPrescaleFactor(15999); // Prescaler: (16MHz/(15999+1) = 1MHz, 1msec period)
-    timer5.setOverflow(5000 - 1); // Auto-reload when CNT = XX: (period = XX msec)
-    timer5.attachInterrupt(TIM5_Handler);
-    timer5.refresh(); // Make register changes take effect
-    timer5.resume(); // Start
+    HardwareTimer *timer5 = new HardwareTimer(TIM5);
+    timer5->setOverflow(5000, MICROSEC_FORMAT);
+    timer5->attachInterrupt(TIM5_Handler);
+    timer5->setInterruptPriority(1, 1);
+    timer5->resume();
+    timer5->refresh();
+    Serial.print("Timer 5 has Interrupt: ");
+    Serial.println(timer5->hasInterrupt());
+    Serial.print("Timer 5 is Running: ");
+    Serial.println(timer5->isRunning());
+
 
     /***** Initialize State Variables *****/
     current_state = temp_C;
+
+    tempC_reading = bme.readTemperature();
+    tempF_reading = tempC_reading * (9.0f/5.0f) + 32.0f;
+    humidity_reading = bme.readHumidity();
+    pressure_reading = (bme.readPressure() / 100.0f) * 0.00098692f;
 
     Serial.println("Successfully Configured");
 }
@@ -144,19 +157,19 @@ void loop() {
 
 void printValues() {
     Serial.print("Temperature = ");
-    Serial.print(bme.readTemperature());
+    Serial.print(tempC_reading);
     Serial.print(" °C\t");
 
     Serial.print("Temperature = ");
-    Serial.print((bme.readTemperature() * (9.0f/5.0f)) + 32.0f);
+    Serial.print(tempF_reading);
     Serial.print(" °F\t");
 
     Serial.print("RelHum = ");
-    Serial.print(bme.readHumidity());
+    Serial.print(humidity_reading);
     Serial.print(" %\t");
 
     Serial.print("Pressure = ");
-    Serial.print((bme.readPressure() / 100.0f) * 0.00098692f, 4);
+    Serial.print(pressure_reading, 4);
     Serial.println(" atm");
 
     Serial.println();
@@ -167,19 +180,19 @@ void update_state(void) {
     switch (current_state) {
         case temp_C:
             current_state = temp_F;
-            pixels.fill(RED);
+            pixels.fill(PURPLE);
             break;
         case temp_F:
             current_state = humidity;
-            pixels.fill(PURPLE);
+            pixels.fill(BLUE);
             break;
         case humidity:
             current_state = pressure;
-            pixels.fill(BLUE);
+            pixels.fill(GREEN);
             break;
         case pressure:
             current_state = temp_C;
-            pixels.fill(GREEN);
+            pixels.fill(RED);
             break;
         default:
             break;
@@ -190,9 +203,9 @@ void update_state(void) {
 void update_reading(void) {
 
     tempC_reading = bme.readTemperature();
-    tempF_reading = tempC_reading * (9/5) + 32;
+    tempF_reading = tempC_reading * (9.0f/5.0f) + 32.0f;
     humidity_reading = bme.readHumidity();
-    pressure_reading = bme.readPressure();
+    pressure_reading = (bme.readPressure() / 100.0f) * 0.00098692f;
 
     switch (current_state) {
         case temp_C:
@@ -205,7 +218,7 @@ void update_reading(void) {
             SSD_reading = humidity_reading * 100;
             break;
         case pressure:
-            SSD_reading = pressure_reading * 10;
+            SSD_reading = pressure_reading * 1000;
             break;
         default:
             break;
