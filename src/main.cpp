@@ -87,7 +87,7 @@ void setup() {
     /***** Setup Serial Monitor *****/
     Serial.begin(BAUDRATE);
     while(!Serial);    // time to get serial running
-    Serial.println(F("\nCPEG222 Project 5 - BME280 Values\n"));
+    Serial.println(F("\n\e[4;37m\e[1;37mCPEG222 Project 5 - BME280 Values\e[0m\n"));
 
     /***** Setup BME Sensor *****/
     unsigned status;
@@ -133,26 +133,29 @@ void loop() {
 
 /**************** Definitions ****************/
 
+/// @brief Prints bme280 readings to serial monitor
 void printValues() {
-    Serial.print("Temperature = ");
+    Serial.printf("\e[0;37mTemperature = \033[31m");
     Serial.print(bme.readTemperature());
-    Serial.print(" °C\t");
+    Serial.print(" °C ");
 
-    Serial.print("Temperature = ");
-    Serial.print((bme.readTemperature() * (9.0f/5.0f)) + 32.0f);
+    Serial.printf("\e[0;37m/ \033[35m");
+    Serial.print((bme.readTemperature() * (9.0f/5.0f)) + 32.0f); // Convert C to F
     Serial.print(" °F\t");
 
-    Serial.print("RelHum = ");
+    Serial.printf("\e[0;37mRelHum = \033[36m");
     Serial.print(bme.readHumidity());
     Serial.print(" %\t");
 
-    Serial.print("Pressure = ");
-    Serial.print((bme.readPressure() / 100.0f) * 0.00098692f, 4);
+    Serial.printf("\e[0;37mPressure = \033[32m");
+    Serial.print((bme.readPressure() / 100.0f) * 0.00098692f, 4); // convert hPa to atm
     Serial.println(" atm");
 
     Serial.println();
 }
 
+/// @brief Updates current state by simply moving to the next state sequentially;
+///        Also updates neopixel color displayed
 void update_state(void) {
     pixels.clear();
     switch (current_state) {
@@ -178,11 +181,12 @@ void update_state(void) {
     pixels.show();
 }
 
+/// @brief Takes new readings of bme280
 void update_reading(void) {
     tempC_reading = bme.readTemperature();
-    tempF_reading = tempC_reading * (9.0f/5.0f) + 32.0f;
+    tempF_reading = tempC_reading * (9.0f/5.0f) + 32.0f; // Convert C to F
     humidity_reading = bme.readHumidity();
-    pressure_reading = (bme.readPressure() / 100.0f) * 0.00098692f;
+    pressure_reading = (bme.readPressure() / 100.0f) * 0.00098692f; // convert hPa to atm
 }
 
 void update_SSD_reading(void) {
@@ -204,8 +208,7 @@ void update_SSD_reading(void) {
     }
 }
 
-/// @brief Handles getting IR reading and interpreting it, updating current reading.
-/// Updates SSD with IR_reading. Triggered by TIM2 interrupt every 500 us (0.5 ms).
+/// @brief Updates SSD with most recent reading, and according to current state 200 times a second
 void TIM2_Handler(void){
 
     digit_select = (digit_select + 1) % 4;
