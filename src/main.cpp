@@ -14,7 +14,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_NeoPixel.h>
-#include <HardwareTimer.h>
 #include "stm32f4xx.h"
 
 #ifndef SSD_ARRAY_H
@@ -47,6 +46,8 @@ extern "C" {
 Adafruit_BME280 bme; // I2C
 Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
+HardwareTimer *timer2;
+
 /**************** Variables ****************/
 
 // State
@@ -69,7 +70,7 @@ volatile float SSD_reading;
 /**************** Declarations ****************/
 
 void TIM2_Handler(void);
-void TIM5_Handler(void);
+// void TIM5_Handler(void);
 void BTN_Handler(void);
 
 void printValues(void);
@@ -97,7 +98,7 @@ void setup() {
         Serial.print("        ID of 0x61 represents a BME 680.\n");
         while (1) delay(10);
     }
-    
+
     /***** Setup Pixels *****/
     pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
     pixels.setBrightness(50);
@@ -113,37 +114,14 @@ void setup() {
     attachInterrupt(BTN_PIN, BTN_Handler, FALLING); // Button interrupt
 
     /***** Setup TIM2 *****/
-    HardwareTimer *timer2 = new HardwareTimer(TIM2);
-    timer2->setOverflow(2000, HERTZ_FORMAT);
+    timer2 = new HardwareTimer(TIM2);
+    timer2->setOverflow(200, HERTZ_FORMAT);
     timer2->attachInterrupt(TIM2_Handler);
-    timer2->setInterruptPriority(2, 2);
     timer2->resume();
-    timer2->refresh();
-    Serial.print("Timer 2 has Interrupt: ");
-    Serial.println(timer2->hasInterrupt());
-    Serial.print("Timer 2 is Running: ");
-    Serial.println(timer2->isRunning());
-
-    /***** Setup TIM5 *****/
-    HardwareTimer *timer5 = new HardwareTimer(TIM5);
-    timer5->setOverflow(5000, MICROSEC_FORMAT);
-    timer5->attachInterrupt(TIM5_Handler);
-    timer5->setInterruptPriority(1, 1);
-    timer5->resume();
-    timer5->refresh();
-    Serial.print("Timer 5 has Interrupt: ");
-    Serial.println(timer5->hasInterrupt());
-    Serial.print("Timer 5 is Running: ");
-    Serial.println(timer5->isRunning());
-
 
     /***** Initialize State Variables *****/
     current_state = temp_C;
-
-    tempC_reading = bme.readTemperature();
-    tempF_reading = tempC_reading * (9.0f/5.0f) + 32.0f;
-    humidity_reading = bme.readHumidity();
-    pressure_reading = (bme.readPressure() / 100.0f) * 0.00098692f;
+    digit_select = 0;
 
     Serial.println("Successfully Configured");
 }
@@ -151,25 +129,29 @@ void setup() {
 /**************** Loop ****************/
 
 void loop() { 
+    timer2->pause();
+    printValues();
+    timer2->resume();
+    delay(5000);
 }
 
 /**************** Definitions ****************/
 
 void printValues() {
     Serial.print("Temperature = ");
-    Serial.print(tempC_reading);
+    Serial.print(bme.readTemperature());
     Serial.print(" °C\t");
 
     Serial.print("Temperature = ");
-    Serial.print(tempF_reading);
+    Serial.print((bme.readTemperature() * (9.0f/5.0f)) + 32.0f);
     Serial.print(" °F\t");
 
     Serial.print("RelHum = ");
-    Serial.print(humidity_reading);
+    Serial.print(bme.readHumidity());
     Serial.print(" %\t");
 
     Serial.print("Pressure = ");
-    Serial.print(pressure_reading, 4);
+    Serial.print((bme.readPressure() / 100.0f) * 0.00098692f, 4);
     Serial.println(" atm");
 
     Serial.println();
@@ -239,11 +221,6 @@ void TIM2_Handler(void){
     SSD_update(digit_select, SSD_reading, decimal);
 }
 
-/// @brief Handles sending values to serial monitor every 5 seconds
-void TIM5_Handler(void) {
-    printValues();
-}
- 
 /// @brief Handles button presses to update the what measurement to display (state)
 void BTN_Handler(void) {
     update_state();
